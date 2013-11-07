@@ -34,12 +34,18 @@
 static int oaktrail_output_init(struct drm_device *dev)
 {
 	struct drm_psb_private *dev_priv = dev->dev_private;
+
+/*
 	if (dev_priv->iLVDS_enable)
 		oaktrail_lvds_init(dev, &dev_priv->mode_dev);
 	else
 		dev_err(dev->dev, "DSI is not supported\n");
+*/
 	if (dev_priv->hdmi_priv)
 		oaktrail_hdmi_init(dev, &dev_priv->mode_dev);
+
+	psb_intel_sdvo_init(dev, SDVOB);
+
 	return 0;
 }
 
