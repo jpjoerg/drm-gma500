@@ -298,7 +298,7 @@ nfqnl_put_packet_info(struct sk_buff *nlskb, struct sk_buff *packet,
 }
 
 static struct sk_buff *
-nfqnl_build_packet_message(struct nfqnl_instance *queue,
+nfqnl_build_packet_message(struct net *net, struct nfqnl_instance *queue,
 			   struct nf_queue_entry *entry,
 			   __be32 **packet_id_ptr)
 {
@@ -372,7 +372,7 @@ nfqnl_build_packet_message(struct nfqnl_instance *queue,
 	if (queue->flags & NFQA_CFG_F_CONNTRACK)
 		ct = nfqnl_ct_get(entskb, &size, &ctinfo);
 
-	skb = nfnetlink_alloc_skb(&init_net, size, queue->peer_portid,
+	skb = nfnetlink_alloc_skb(net, size, queue->peer_portid,
 				  GFP_ATOMIC);
 	if (!skb)
 		return NULL;
@@ -463,7 +463,10 @@ nfqnl_build_packet_message(struct nfqnl_instance *queue,
 	if (indev && entskb->dev &&
 	    entskb->mac_header != entskb->network_header) {
 		struct nfqnl_msg_packet_hw phw;
-		int len = dev_parse_header(entskb, phw.hw_addr);
+		int len;
+
+		memset(&phw, 0, sizeof(phw));
+		len = dev_parse_header(entskb, phw.hw_addr);
 		if (len) {
 			phw.hw_addrlen = htons(len);
 			if (nla_put(skb, NFQA_HWADDR, sizeof(phw), &phw))
@@ -522,7 +525,7 @@ __nfqnl_enqueue_packet(struct net *net, struct nfqnl_instance *queue,
 	__be32 *packet_id_ptr;
 	int failopen = 0;
 
-	nskb = nfqnl_build_packet_message(queue, entry, &packet_id_ptr);
+	nskb = nfqnl_build_packet_message(net, queue, entry, &packet_id_ptr);
 	if (nskb == NULL) {
 		err = -ENOMEM;
 		goto err_out;
@@ -859,6 +862,7 @@ static const struct nla_policy nfqa_verdict_policy[NFQA_MAX+1] = {
 	[NFQA_MARK]		= { .type = NLA_U32 },
 	[NFQA_PAYLOAD]		= { .type = NLA_UNSPEC },
 	[NFQA_CT]		= { .type = NLA_UNSPEC },
+	[NFQA_EXP]		= { .type = NLA_UNSPEC },
 };
 
 static const struct nla_policy nfqa_verdict_batch_policy[NFQA_MAX+1] = {
@@ -987,9 +991,14 @@ nfqnl_recv_verdict(struct sock *ctnl, struct sk_buff *skb,
 	if (entry == NULL)
 		return -ENOENT;
 
-	rcu_read_lock();
-	if (nfqa[NFQA_CT] && (queue->flags & NFQA_CFG_F_CONNTRACK))
+	if (nfqa[NFQA_CT]) {
 		ct = nfqnl_ct_parse(entry->skb, nfqa[NFQA_CT], &ctinfo);
+		if (ct && nfqa[NFQA_EXP]) {
+			nfqnl_attach_expect(ct, nfqa[NFQA_EXP],
+					    NETLINK_CB(skb).portid,
+					    nlmsg_report(nlh));
+		}
+	}
 
 	if (nfqa[NFQA_PAYLOAD]) {
 		u16 payload_len = nla_len(nfqa[NFQA_PAYLOAD]);
@@ -1000,9 +1009,8 @@ nfqnl_recv_verdict(struct sock *ctnl, struct sk_buff *skb,
 			verdict = NF_DROP;
 
 		if (ct)
-			nfqnl_ct_seq_adjust(skb, ct, ctinfo, diff);
+			nfqnl_ct_seq_adjust(entry->skb, ct, ctinfo, diff);
 	}
-	rcu_read_unlock();
 
 	if (nfqa[NFQA_MARK])
 		entry->skb->mark = ntohl(nla_get_be32(nfqa[NFQA_MARK]));

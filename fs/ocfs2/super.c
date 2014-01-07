@@ -1022,7 +1022,7 @@ static int ocfs2_fill_super(struct super_block *sb, void *data, int silent)
 	struct inode *inode = NULL;
 	struct ocfs2_super *osb = NULL;
 	struct buffer_head *bh = NULL;
-	char nodestr[8];
+	char nodestr[12];
 	struct ocfs2_blockcheck_stats stats;
 
 	trace_ocfs2_fill_super(sb, data, silent);
@@ -1848,8 +1848,8 @@ static int ocfs2_get_sector(struct super_block *sb,
 
 	*bh = sb_getblk(sb, block);
 	if (!*bh) {
-		mlog_errno(-EIO);
-		return -EIO;
+		mlog_errno(-ENOMEM);
+		return -ENOMEM;
 	}
 	lock_buffer(*bh);
 	if (!buffer_dirty(*bh))
@@ -1924,7 +1924,7 @@ static void ocfs2_dismount_volume(struct super_block *sb, int mnt_err)
 {
 	int tmp, hangup_needed = 0;
 	struct ocfs2_super *osb = NULL;
-	char nodestr[8];
+	char nodestr[12];
 
 	trace_ocfs2_dismount_volume(sb);
 
