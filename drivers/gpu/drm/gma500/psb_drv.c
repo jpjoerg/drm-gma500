@@ -21,7 +21,9 @@
 
 #include <drm/drmP.h>
 #include <drm/drm.h>
+#include <uapi/drm/gma_drm.h>
 #include "psb_drv.h"
+#include "gem.h"
 #include "framebuffer.h"
 #include "psb_reg.h"
 #include "psb_intel_reg.h"
@@ -85,11 +87,85 @@ static DEFINE_PCI_DEVICE_TABLE(pciidlist) = {
 };
 MODULE_DEVICE_TABLE(pci, pciidlist);
 
-/*
- * Standard IOCTLs.
- */
+/* ioctls */
+static int gma_get_param_ioctl(struct drm_device *dev, void *data,
+			       struct drm_file *file_priv);
+static int gma_set_param_ioctl(struct drm_device *dev, void *data,
+			       struct drm_file *file_priv);
+static int gma_gem_create_ioctl(struct drm_device *dev, void *data,
+				struct drm_file *file_priv);
+static int gma_gem_mmap_ioctl(struct drm_device *dev, void *data,
+			      struct drm_file *file_priv);
+static int gma_gem_blt_submit_ioctl(struct drm_device *dev, void *data,
+				    struct drm_file *file_priv);
+
 static const struct drm_ioctl_desc psb_ioctls[] = {
+	DRM_IOCTL_DEF_DRV(GMA_GET_PARAM, gma_get_param_ioctl, DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(GMA_SET_PARAM, gma_set_param_ioctl, DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(GMA_GEM_CREATE, gma_gem_create_ioctl, DRM_UNLOCKED | DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(GMA_GEM_MMAP, gma_gem_mmap_ioctl, DRM_UNLOCKED | DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(GMA_GEM_BLT_SUBMIT, gma_gem_blt_submit_ioctl, DRM_UNLOCKED | DRM_CONTROL_ALLOW),
 };
+
+static int gma_get_param_ioctl(struct drm_device *dev, void *data,
+			       struct drm_file *file_priv)
+{
+	struct drm_gma_param *args = data;
+
+	switch (args->param) {
+	case DRM_GMA_PARAM_CHIP_ID:
+		args->value = dev->pdev->device;
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int gma_set_param_ioctl(struct drm_device *dev, void *data,
+			       struct drm_file *file_priv)
+{
+	/* Nothing here yet */
+	return -EINVAL;
+}
+
+static int gma_gem_create_ioctl(struct drm_device *dev, void *data,
+				struct drm_file *file_priv)
+{
+	struct drm_gma_gem_create *args = data;
+	u32 align = PAGE_SIZE;
+	int stolen = 0;
+
+	if (args->flags != 0)
+		return -EINVAL;
+
+	switch (args->type) {
+	case GMA_BO_STOLEN:
+	case GMA_BO_CURSOR:
+		stolen = 1;
+		break;
+	}
+
+	return psb_gem_create(file_priv, dev, args->size, &args->handle, stolen,
+			      align);
+}
+
+static int gma_gem_mmap_ioctl(struct drm_device *dev, void *data,
+			      struct drm_file *file_priv)
+{
+	struct drm_gma_gem_mmap *args = data;
+
+	return dev->driver->dumb_map_offset(file_priv, dev, args->handle,
+					    &args->offset);
+}
+
+static int gma_gem_blt_submit_ioctl(struct drm_device *dev, void *data,
+				    struct drm_file *file_priv)
+{
+	return 0;
+}
 
 static void psb_lastclose(struct drm_device *dev)
 {
