@@ -94,9 +94,10 @@ static int gma_blt_send(struct drm_psb_private *dev_priv, uint32_t *cmdbuf,
 	ret = gma_blt_wait_idle(dev_priv);
 	if (ret) {
 		DRM_ERROR("Blitter hang!");
-		return ret;
+		goto out;
 	}
 
+out:
 	spin_unlock_irqrestore(&dev_priv->lock_2d, flags);
 
 	return ret;
