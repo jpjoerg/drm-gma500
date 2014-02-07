@@ -18,5 +18,7 @@
 #define __BLITTER_H
 
 extern int gma_blt_wait_idle(struct drm_psb_private *dev_priv);
+extern int gma_blt_submit(struct drm_file *file, struct drm_device *dev,
+			  u32 size, u32 handle);
 
 #endif

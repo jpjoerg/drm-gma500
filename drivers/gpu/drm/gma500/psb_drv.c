@@ -24,6 +24,7 @@
 #include <uapi/drm/gma_drm.h>
 #include "psb_drv.h"
 #include "gem.h"
+#include "blitter.h"
 #include "framebuffer.h"
 #include "psb_reg.h"
 #include "psb_intel_reg.h"
@@ -164,7 +165,10 @@ static int gma_gem_mmap_ioctl(struct drm_device *dev, void *data,
 static int gma_gem_blt_submit_ioctl(struct drm_device *dev, void *data,
 				    struct drm_file *file_priv)
 {
-	return 0;
+	struct drm_gma_gem_blt_submit *args = data;
+	if (args->flags != 0)
+		return -EINVAL;
+	return gma_blt_submit(file_priv, dev, args->size, args->handle);
 }
 
 static void psb_lastclose(struct drm_device *dev)

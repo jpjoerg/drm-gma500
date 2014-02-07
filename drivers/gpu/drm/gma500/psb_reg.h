@@ -198,6 +198,7 @@
 #define	PSB_2D_PAT_PAL_BH		(0xD0000000)
 #define	PSB_2D_MASK_SURF_BH		(0xE0000000)
 #define	PSB_2D_FLUSH_BH			(0xF0000000)
+#define PSB_2D_BH_MASK			(0xF0000000)
 
 /*
  * Clip Definition block (PSB_2D_CLIP_BH)
