@@ -97,6 +97,8 @@ static int gma_gem_create_ioctl(struct drm_device *dev, void *data,
 				struct drm_file *file_priv);
 static int gma_gem_mmap_ioctl(struct drm_device *dev, void *data,
 			      struct drm_file *file_priv);
+static int gma_gem_wrap_ioctl(struct drm_device *dev, void *data,
+			      struct drm_file *file_priv);
 static int gma_gem_blt_submit_ioctl(struct drm_device *dev, void *data,
 				    struct drm_file *file_priv);
 
@@ -105,6 +107,7 @@ static const struct drm_ioctl_desc psb_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(GMA_SET_PARAM, gma_set_param_ioctl, DRM_AUTH),
 	DRM_IOCTL_DEF_DRV(GMA_GEM_CREATE, gma_gem_create_ioctl, DRM_UNLOCKED | DRM_AUTH),
 	DRM_IOCTL_DEF_DRV(GMA_GEM_MMAP, gma_gem_mmap_ioctl, DRM_UNLOCKED | DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(GMA_GEM_WRAP, gma_gem_wrap_ioctl, DRM_UNLOCKED | DRM_AUTH),
 	DRM_IOCTL_DEF_DRV(GMA_GEM_BLT_SUBMIT, gma_gem_blt_submit_ioctl, DRM_UNLOCKED | DRM_CONTROL_ALLOW),
 };
 
@@ -160,6 +163,15 @@ static int gma_gem_mmap_ioctl(struct drm_device *dev, void *data,
 
 	return dev->driver->dumb_map_offset(file_priv, dev, args->handle,
 					    &args->offset);
+}
+
+static int gma_gem_wrap_ioctl(struct drm_device *dev, void *data,
+			      struct drm_file *file_priv)
+{
+	struct drm_gma_gem_wrap *args = data;
+
+	return psb_gem_wrap(file_priv, dev, &args->handle, &args->offset,
+			    (void __user *)args->addr, args->size);
 }
 
 static int gma_gem_blt_submit_ioctl(struct drm_device *dev, void *data,

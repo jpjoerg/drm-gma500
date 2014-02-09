@@ -62,16 +62,26 @@ struct drm_gma_gem_blt_submit {
 	__u32 __pad;
 };
 
-#define DRM_GMA_GET_PARAM	0x00
-#define DRM_GMA_SET_PARAM	0x01
-#define DRM_GMA_GEM_CREATE	0x02
-#define DRM_GMA_GEM_MMAP	0x03
-#define DRM_GMA_GEM_BLT_SUBMIT	0x04
+struct drm_gma_gem_wrap {
+	__u32 handle;
+	__u32 offset;
+	__u64 addr;
+	__u32 size;
+	__u32 __pad;
+};
+
+#define DRM_GMA_GET_PARAM	0x00 /* Get parameter */
+#define DRM_GMA_SET_PARAM	0x01 /* Set parameter */
+#define DRM_GMA_GEM_CREATE	0x02 /* Create gem obj */
+#define DRM_GMA_GEM_MMAP	0x03 /* Memory map gem obj */
+#define DRM_GMA_GEM_WRAP	0x04 /* Wrap gem obj around userspace pages */
+#define DRM_GMA_GEM_BLT_SUBMIT	0x05 /* Submit command to blitter */
 
 #define DRM_IOCTL_GMA_GET_PARAM		DRM_IOWR(DRM_COMMAND_BASE + DRM_GMA_GET_PARAM, struct drm_gma_param)
 #define DRM_IOCTL_GMA_SET_PARAM		DRM_IOW (DRM_COMMAND_BASE + DRM_GMA_SET_PARAM, struct drm_gma_param)
 #define DRM_IOCTL_GMA_GEM_CREATE	DRM_IOWR(DRM_COMMAND_BASE + DRM_GMA_GEM_CREATE, struct drm_gma_gem_create)
 #define DRM_IOCTL_GMA_GEM_MMAP		DRM_IOWR(DRM_COMMAND_BASE + DRM_GMA_GEM_MMAP, struct drm_gma_gem_mmap)
+#define DRM_IOCTL_GMA_GEM_WRAP		DRM_IOWR(DRM_COMMAND_BASE + DRM_GMA_GEM_WRAP, struct drm_gma_gem_wrap)
 #define DRM_IOCTL_GMA_GEM_BLT_SUBMIT	DRM_IOWR(DRM_COMMAND_BASE + DRM_GMA_GEM_BLT_SUBMIT, struct drm_gma_gem_blt_submit)
 
 #endif

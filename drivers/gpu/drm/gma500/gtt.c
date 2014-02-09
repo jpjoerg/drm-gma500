@@ -81,8 +81,8 @@ static u32 __iomem *psb_gtt_entry(struct drm_device *dev, struct gtt_range *r)
  *	the GTT. This is protected via the gtt mutex which the caller
  *	must hold.
  */
-static int psb_gtt_insert(struct drm_device *dev, struct gtt_range *r,
-			  int resume)
+int psb_gtt_insert(struct drm_device *dev, struct gtt_range *r,
+		   int resume)
 {
 	u32 __iomem *gtt_slot;
 	u32 pte;
@@ -99,7 +99,7 @@ static int psb_gtt_insert(struct drm_device *dev, struct gtt_range *r,
 	gtt_slot = psb_gtt_entry(dev, r);
 	pages = r->pages;
 
-	if (!resume) {
+	if (!resume || !r->wrapped) {
 		/* Make sure changes are visible to the GPU */
 		set_pages_array_wc(pages, r->npage);
 	}
@@ -146,7 +146,57 @@ void psb_gtt_remove(struct drm_device *dev, struct gtt_range *r)
 	for (i = 0; i < r->npage; i++)
 		iowrite32(pte, gtt_slot++);
 	ioread32(gtt_slot - 1);
-	set_pages_array_wb(r->pages, r->npage);
+
+	if (!r->wrapped)
+		set_pages_array_wb(r->pages, r->npage);
+}
+
+static void psb_gtt_unwrap(struct gtt_range *gt)
+{
+	int i;
+
+	/* Unpin pages */
+	for (i = 0; i < gt->npage; i++)
+		put_page(gt->pages[i]);
+
+	kfree(gt->pages);
+	gt->pages = NULL;
+	gt->npage = 0;
+	gt->wrapped = 0;
+}
+
+int psb_gtt_wrap(struct gtt_range *gt, void __user *uaddr, u32 size)
+{
+	struct page **pages;
+	int ret;
+	u32 npage;
+
+	WARN_ON(gt->pages);
+
+	npage = roundup(size, PAGE_SIZE) >> PAGE_SHIFT;
+	pages = kmalloc(sizeof(struct page *) * npage, GFP_KERNEL);
+
+	if (pages == NULL)
+		return -ENOMEM;
+
+	/* Fetch and pin the pages backing the userspace buffer */
+	ret = get_user_pages_fast((unsigned long)uaddr, npage, 0, pages);
+
+	gt->npage = ret;
+	gt->pages = pages;
+
+	/* We must get the requested number or pages or we fail */
+	if (ret != npage) {
+		psb_gtt_unwrap(gt);
+		return -EINVAL;
+	}
+
+	gt->wrapped = 1;
+	/* Pretend we're doing a mapping */
+	psb_gtt_pin(gt);
+	gt->mmapping = 1;
+
+	return 0;
 }
 
 /**
@@ -204,6 +254,10 @@ static int psb_gtt_attach_pages(struct gtt_range *gt)
 {
 	struct page **pages;
 
+	/* If we're wrapping userspace pages we do nothing here */
+	if (gt->wrapped)
+		return 0;
+
 	WARN_ON(gt->pages);
 
 	pages = drm_gem_get_pages(&gt->gem, 0);
@@ -227,8 +281,12 @@ static int psb_gtt_attach_pages(struct gtt_range *gt)
  */
 static void psb_gtt_detach_pages(struct gtt_range *gt)
 {
-	drm_gem_put_pages(&gt->gem, gt->pages, true, false);
-	gt->pages = NULL;
+	if (gt->wrapped) {
+		psb_gtt_unwrap(gt);
+	} else {
+		drm_gem_put_pages(&gt->gem, gt->pages, true, false);
+		gt->pages = NULL;
+	}
 }
 
 /**
@@ -354,6 +412,7 @@ struct gtt_range *psb_gtt_alloc_range(struct drm_device *dev, int len,
 	gt->resource.name = name;
 	gt->stolen = backed;
 	gt->in_gart = backed;
+	gt->wrapped = 0;
 	gt->roll = 0;
 	/* Ensure this is set for non GEM objects */
 	gt->gem.dev = dev;

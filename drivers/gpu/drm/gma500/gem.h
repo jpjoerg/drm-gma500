@@ -18,4 +18,8 @@
 
 extern int psb_gem_create(struct drm_file *file, struct drm_device *dev,
 			  u64 size, u32 *handlep, int stolen, u32 align);
+extern int psb_gem_wrap(struct drm_file *file, struct drm_device *dev,
+			u32 *handlep, u32 *offset, void __user *uaddr,
+			u32 size);
+
 #endif

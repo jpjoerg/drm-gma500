@@ -47,6 +47,7 @@ struct gtt_range {
 	int in_gart;			/* Currently in the GART (ref ct) */
 	bool stolen;			/* Backed from stolen RAM */
 	bool mmapping;			/* Is mmappable */
+	bool wrapped;			/* Pages belong to userspace */
 	struct page **pages;		/* Backing pages if present */
 	int npage;			/* Number of backing pages */
 	int roll;			/* Roll applied to the GTT entries */
@@ -62,4 +63,9 @@ extern void psb_gtt_unpin(struct gtt_range *gt);
 extern void psb_gtt_roll(struct drm_device *dev,
 					struct gtt_range *gt, int roll);
 extern int psb_gtt_restore(struct drm_device *dev);
+extern int psb_gtt_insert(struct drm_device *dev, struct gtt_range *r,
+			  int resume);
+extern void psb_gtt_remove(struct drm_device *dev, struct gtt_range *r);
+extern int psb_gtt_wrap(struct gtt_range *gt, void __user *uaddr, u32 size);
+
 #endif

@@ -2,6 +2,7 @@
  *  psb GEM interface
  *
  * Copyright (c) 2011, Intel Corporation.
+ * Copyright (c) 2014, Patrik Jakobsson
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -17,17 +18,15 @@
  * 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Authors: Alan Cox
- *
- * TODO:
- *	-	we need to work out if the MMU is relevant (eg for
- *		accelerated operations on a GEM object)
- */
+ *	    Patrik Jakobsson <patrik.r.jakobsson@gmail.com>
+  */
 
 #include <drm/drmP.h>
 #include <drm/drm.h>
 #include <drm/gma_drm.h>
 #include <drm/drm_vma_manager.h>
 #include "psb_drv.h"
+#include "gtt.h"
 
 void psb_gem_free_object(struct drm_gem_object *obj)
 {
@@ -229,4 +228,42 @@ fail:
 	default:
 		return VM_FAULT_SIGBUS;
 	}
+}
+
+int psb_gem_wrap(struct drm_file *file, struct drm_device *dev,
+		 u32 *handlep, u32 *offset, void __user *uaddr, u32 size)
+{
+	struct drm_gem_object *obj;
+	struct gtt_range *gt;
+	int ret = 0;
+	u32 handle;
+	u32 start = rounddown((unsigned long)uaddr, PAGE_SIZE);
+	u32 end = (unsigned long)uaddr + roundup(size, PAGE_SIZE);
+
+	ret = psb_gem_create(file, dev, end - start, &handle, 0, PAGE_SIZE);
+	if (ret) {
+		DRM_ERROR("Failed to create gem obj");
+		return ret;
+	}
+
+	obj = drm_gem_object_lookup(dev, file, handle);
+	if (!obj) {
+		DRM_ERROR("Failed to lookup gem obj");
+		return -ENOENT;
+	}
+
+	gt = container_of(obj, struct gtt_range, gem);
+
+	ret = psb_gtt_wrap(gt, uaddr, end - start);
+	if (ret) {
+		drm_gem_object_unreference(obj);
+		psb_gem_free_object(obj);
+		return ret;
+	}
+
+	*offset = (u32)uaddr - start;
+	*handlep = handle;
+
+	drm_gem_object_unreference(obj);
+	return ret;
 }
