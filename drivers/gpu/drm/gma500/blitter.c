@@ -31,17 +31,22 @@ int gma_blt_wait_idle(struct drm_psb_private *dev_priv)
 	    ((PSB_RSGX32(PSB_CR_2D_BLIT_STATUS) & _PSB_C2B_STATUS_BUSY) == 0))
 		return 0;
 
-	do {
+	busy = (PSB_RSGX32(PSB_CR_2D_SOCIF) != _PSB_C2_SOCIF_EMPTY);
+	while (busy && !time_after_eq(jiffies, stop)) {
+		schedule();
 		busy = (PSB_RSGX32(PSB_CR_2D_SOCIF) != _PSB_C2_SOCIF_EMPTY);
-	} while (busy && !time_after_eq(jiffies, stop));
+	}
 
 	if (busy)
 		return -EBUSY;
 
-	do {
+	busy = ((PSB_RSGX32(PSB_CR_2D_BLIT_STATUS) &
+		_PSB_C2B_STATUS_BUSY) != 0);
+	while (busy && !time_after_eq(jiffies, stop)) {
+		schedule();
 		busy = ((PSB_RSGX32(PSB_CR_2D_BLIT_STATUS) &
 			_PSB_C2B_STATUS_BUSY) != 0);
-	} while (busy && !time_after_eq(jiffies, stop));
+	}
 
 	/* If still busy, we probably have a hang */
 	return (busy) ? -EBUSY : 0;
@@ -73,9 +78,15 @@ static int gma_blt_send(struct drm_psb_private *dev_priv, uint32_t *cmdbuf,
 	int ret = 0;
 	int i;
 	unsigned submit_size;
-	unsigned long flags;
 
-	spin_lock_irqsave(&dev_priv->lock_2d, flags);
+	mutex_lock(&dev_priv->mutex_2d);
+
+	/* FIXME: Need something better for serialization in the future */
+	ret = gma_blt_wait_idle(dev_priv);
+	if (ret) {
+		DRM_ERROR("Blitter hang!");
+		goto out;
+	}
 
 	while (size > 0) {
 		submit_size = (size < 0x60) ? size : 0x60;
@@ -90,15 +101,8 @@ static int gma_blt_send(struct drm_psb_private *dev_priv, uint32_t *cmdbuf,
 		(void)PSB_RSGX32(PSB_SGX_2D_SLAVE_PORT + i - 4);
 	}
 
-	/* We currently sync our blits here */
-	ret = gma_blt_wait_idle(dev_priv);
-	if (ret) {
-		DRM_ERROR("Blitter hang!");
-		goto out;
-	}
-
 out:
-	spin_unlock_irqrestore(&dev_priv->lock_2d, flags);
+	mutex_unlock(&dev_priv->mutex_2d);
 
 	return ret;
 }

@@ -629,6 +629,7 @@ struct drm_psb_private {
 
 	/* 2D acceleration */
 	spinlock_t lock_2d;
+	struct mutex mutex_2d;
 
 	/*
 	 * Panel brightness
